@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SNG Client</title>
+<style>
+  html, body { margin: 0; background: #222; }
+  #table {
+    position: relative; width: 800px; height: 495px; margin: 0 auto;
+    background: #0b4a14; font: bold 14px Arial, Helvetica, sans-serif; color: #000;
+    overflow: hidden;
+  }
+  .hdr { position: absolute; color: #fff; white-space: nowrap; }
+  .pot, .label { position: absolute; color: #fff; }
+  .label { font-weight: normal; }
+  .card { position: absolute; width: 63px; height: 92px; }
+  .name { position: absolute; background: #ffffc8; padding: 1px 3px; line-height: 17px;
+          box-shadow: 1px 1px 0 #000; min-width: 62px; z-index: 5; }
+  .name.out { background: #c0c0c0; }
+  .name.empty { min-width: 0; }
+  .action { position: absolute; width: 85px; text-align: center; color: #fff; }
+  #dealer { position: absolute; z-index: 10; width: 32px; height: 32px; border-radius: 50%; background: #fff;
+            border: 1px solid #000; text-align: center; line-height: 32px; }
+  #arrow { position: absolute; width: 0; height: 0; border-left: 9px solid transparent;
+           border-right: 9px solid transparent; border-bottom: 14px solid #e00; }
+  #arrow.down { transform: rotate(180deg); }
+  #arrow::after { content: ""; position: absolute; left: -4px; top: 14px; width: 8px; height: 8px; background: #e00; }
+  button { position: absolute; top: 433px; height: 22px; font: bold 14px Arial; background: #d4d0c8;
+                     border: 2px outset #fff; padding: 0 6px; cursor: pointer; }
+  #bet { position: absolute; left: 340px; top: 433px; width: 74px; height: 20px; border: 2px inset #888; font: 14px Arial; }
+  #chat { position: absolute; left: 63px; top: 466px; width: 258px; height: 20px; border: 2px inset #888;
+          background: #ffffa0; font: 14px Arial; }
+  #msg { position: absolute; left: 448px; top: 432px; width: 296px; height: 60px; box-sizing: border-box;
+         background: #ffffc8; border: 2px inset #888; padding: 4px; font: 14px Arial; font-weight: normal; }
+</style>
+</head>
+<body>
+<div id="table"></div>
+
+<script>
+// All coordinates are px relative to the table body.
+const T = document.getElementById('table');
+const CARD_W = 63, CARD_H = 92;
+
+function add(cls, css, html, id) {
+  const d = document.createElement('div');
+  d.className = cls;
+  Object.assign(d.style, css);
+  if (html) d.innerHTML = html;
+  if (id) d.id = id;
+  T.appendChild(d);
+  return d;
+}
+
+function card(code, x, y, z) {
+  const i = document.createElement('img');
+  i.className = 'card';
+  i.src = 'cards/' + code + '.png';
+  Object.assign(i.style, { left: x + 'px', top: y + 'px', zIndex: z });
+  T.appendChild(i);
+}
+
+// ---- game state ----
+const state = {
+  bo: true,
+  atc: 1, 
+  tournament: 1, 
+  hand: 2, 
+  blinds: 15 + '/' + 30, 
+  next_blinds: '25/50',
+  next_blind_time: '20:35',
+  pot: 200, 
+  dealer: 3,   // seat number holding the D button
+  turn: 1,     // seat number to act (red arrow); 0 = no arrow
+  board: ['9d', 'Qh', '4s', 'As'],
+  message: 'Dealer:You have 5 seconds left to act',
+  // per-seat data, indexed by seat number - 1
+  players: ['Dave', 'Chris', 'Andy', 'Nick'],
+  chips: [2950, 3200, 3450, 2400],
+  cards: [['2s', 'As'], [], [], ['back', 'back']],   // [] = no cards shown
+  actions: ['Check', '', '', 'Raise 1000'],                          // 'Check', 'Fold', ...
+};
+
+// Seat screen positions (px), indexed by seat number - 1
+//   l = name/chips label, c = hole cards, t = turn arrow, d = dealer button, a = action label (optional; defaults to centred below the name label)
+const seatpos = [
+  { lx: 44,  ly: 118, cx: 52,  cy: 72, tx: 43,  ty: 163, dx: 91,  dy: 75, ax: 52,  ay: 180 },
+  { lx: 184, ly: 118, cx: 192, cy: 72, tx: 183, ty: 163, dx: 231, dy: 75, ax: 192,  ay: 180  },
+  { lx: 322, ly: 118, cx: 330, cy: 72, tx: 321, ty: 163, dx: 369, dy: 75, ax: 330,  ay: 180  },
+  { lx: 464, ly: 118, cx: 474, cy: 72, tx: 463, ty: 163, dx: 511, dy: 75, ax: 474,  ay: 180  },
+];
+
+// header
+[['TURBO ' + state.tournament, 52], ['HAND ' + state.hand, 152],
+ ['BLINDS ' + state.blinds, 227], ['NEXT BLINDS ' + state.next_blinds, 377],['00:28',527]]
+  .forEach(([t, x]) => add('hdr', { left: x + 'px', top: '19px' }, t));
+
+// hole cards first so the name labels overlay them
+state.cards.forEach((hole, i) => {
+  if (!hole.length) return;
+  const { cx, cy } = seatpos[i];
+  if (hole[0] !== 'back') {          // face up: overlapped pair
+    card(hole[0], cx - 2, cy - 6, 1);
+    card(hole[1], cx + 13, cy + 5, 2);
+  } else {
+    card(hole[0], cx, cy, 1);
+    card(hole[1], cx + 13, cy + 7, 2);
+  }
+});
+
+// action labels (Check / Fold ...)
+state.actions.forEach((act, i) => {
+  if (!act) return;
+  const p = seatpos[i];
+  add('action', { left: (p.ax ?? p.lx - 11) + 'px', top: (p.ay ?? p.ly + 38) + 'px' }, act);
+});
+
+// name / chip labels
+state.players.forEach((name, i) => {
+  const p = seatpos[i], chips = state.chips[i];
+  add('name' + (chips == null ? ' empty' : ''), { left: p.lx + 'px', top: p.ly + 'px' },
+      (i + 1) + ' ' + name + (chips != null ? '<br>' + chips : ''));
+});
+
+// board, pot, dealer button, turn arrow
+state.board.forEach((c, i) => card(c, 52 + i * 75, 228, 1));
+add('pot', { left: '496px', top: '239px' }, 'POT : ' + state.pot);
+const dealerPos = seatpos[state.dealer - 1];
+add('', { left: dealerPos.dx + 'px', top: dealerPos.dy + 'px' }, 'D', 'dealer');
+if (state.turn > 0) {
+  const t = seatpos[state.turn - 1];
+  add(t.down ? 'down' : '', { left: t.tx + 'px', top: t.ty + 'px' }, '', 'arrow');
+}
+
+// controls
+const message = add('', {}, state.message, 'msg');
+controlsb = [['Check', 16], ['BetHalfPot', 79], ['BetPot', 172], ['AllIn',238]]
+controlsr = [['Call', 16], ['RaiseHalfPot', 63], ['RaisePot', 170], ['AllIn',250]]
+
+controls = state.atc ? controlsr : controlsb; 
+label = state.atc ?   'Raise':'Bet'; 
+
+controls.forEach(([t, x]) => {
+  const b = document.createElement('button');
+  b.textContent = t;
+  b.style.left = x + 'px';
+  b.onclick = () => { message.textContent = 'You pressed ' + t; };
+  T.appendChild(b);
+});
+add('label', { left: '300px', top: '436px' }, label);
+add('label', { left: '24px', top: '470px' }, 'Chat');
+[['bet', '0'], ['chat', '']].forEach(([id, v]) => {
+  const i = document.createElement('input');
+  i.id = id; i.value = v;
+  T.appendChild(i);
+});
+</script>
+</body>
+</html>
