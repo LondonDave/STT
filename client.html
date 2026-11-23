@@ -121,7 +121,7 @@ state.actions.forEach((act, i) => {
 state.players.forEach((name, i) => {
   const p = seatpos[i], chips = state.chips[i];
   add('name' + (chips == null ? ' empty' : ''), { left: p.lx + 'px', top: p.ly + 'px' },
-      (i + 1) + ' ' + name + (chips != null ? '<br>' + chips : ''));
+      (state.atc && i === state.turn - 1 ? state.atc + ' to call' : name) + (chips != null ? '<br>' + chips : ''));
 });
 
 // board, pot, dealer button, turn arrow
