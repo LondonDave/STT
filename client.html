@@ -35,8 +35,10 @@
   #msg { position: absolute; left: 448px; top: 432px; width: 296px; height: 60px; box-sizing: border-box;
          background: #ffffc8; border: 2px inset #888; padding: 4px; font: 14px Arial; font-weight: normal; overflow-y: auto; }
 </style>
+<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+<script src="https://unpkg.com/htmx-ext-ws@2.0.1/ws.js"></script>
 </head>
-<body>
+<body hx-ext="ws" ws-connect="ws://localhost:1338/ws">
 <div id="table"></div>
 
 <script>
@@ -63,7 +65,7 @@ function card(code, x, y, z) {
 }
 
 // ---- game state ----
-const state = {
+let state = {
   tournament: 1, 
   hand: 2, 
   blinds: '15/30', 
@@ -92,82 +94,110 @@ const seatpos = [
   { lx: 464, ly: 118, cx: 474, cy: 72, tx: 463, ty: 163, dx: 511, dy: 75, ax: 474,  ay: 180  },
 ];
 
-// header
-[['TURBO ' + state.tournament, 52], ['HAND ' + state.hand, 152],
- ['BLINDS ' + state.blinds, 227], ['NEXT BLINDS ' + state.next_blinds, 377],['00:28',527]]
-  .forEach(([t, x]) => add('hdr', { left: x + 'px', top: '19px' }, t));
 
-// hole cards first so the name labels overlay them
-state.cards.forEach((hole, i) => {
-  if (!hole.length) return;
-  const { cx, cy } = seatpos[i];
-  if (hole[0] !== 'back') {          // face up: overlapped pair
-    card(hole[0], cx - 2, cy - 6, 1);
-    card(hole[1], cx + 13, cy + 5, 2);
-  } else {
-    card(hole[0], cx, cy, 1);
-    card(hole[1], cx + 13, cy + 7, 2);
+// ---- rendering: rebuilds the whole table from a state object ----
+function render(state) {
+  // keep what the user has typed across updates
+  const saved = {};
+  ['bet', 'chat'].forEach(id => { const e = document.getElementById(id); if (e) saved[id] = e.value; });
+  T.replaceChildren();
+  // header
+  [['TURBO ' + state.tournament, 52], ['HAND ' + state.hand, 152],
+   ['BLINDS ' + state.blinds, 227], ['NEXT BLINDS ' + state.next_blinds, 377],['00:28',527]]
+    .forEach(([t, x]) => add('hdr', { left: x + 'px', top: '19px' }, t));
+
+  // hole cards first so the name labels overlay them
+  state.cards.forEach((hole, i) => {
+    if (!hole.length) return;
+    const { cx, cy } = seatpos[i];
+    if (hole[0] !== 'back') {          // face up: overlapped pair
+      card(hole[0], cx - 2, cy - 6, 1);
+      card(hole[1], cx + 13, cy + 5, 2);
+    } else {
+      card(hole[0], cx, cy, 1);
+      card(hole[1], cx + 13, cy + 7, 2);
+    }
+  });
+
+  // action labels (Check / Fold ...)
+  state.actions.forEach((act, i) => {
+    if (!act) return;
+    const p = seatpos[i];
+    add('action', { left: (p.ax ?? p.lx - 11) + 'px', top: (p.ay ?? p.ly + 38) + 'px' }, act);
+  });
+
+  // name / chip labels
+  state.players.forEach((name, i) => {
+    const p = seatpos[i], chips = state.chips[i];
+    add('name' + (chips == null ? ' empty' : ''), { left: p.lx + 'px', top: p.ly + 'px' },
+        (state.atc && i === state.turn - 1 ? state.atc + ' to call' : name) + (chips != null ? '<br>' + chips : ''));
+  });
+
+  // board, pot, dealer button, turn arrow
+  state.board.forEach((c, i) => card(c, 52 + i * 75, 228, 1));
+  add('pot', { left: '496px', top: '239px' }, 'POT : ' + state.pot);
+  const dealerPos = seatpos[state.dealer - 1];
+  add('', { left: dealerPos.dx + 'px', top: dealerPos.dy + 'px' }, 'D', 'dealer');
+  if (state.turn > 0) {
+    const t = seatpos[state.turn - 1];
+    add(t.down ? 'down' : '', { left: t.tx + 'px', top: t.ty + 'px' }, '', 'arrow');
   }
-});
 
-// action labels (Check / Fold ...)
-state.actions.forEach((act, i) => {
-  if (!act) return;
-  const p = seatpos[i];
-  add('action', { left: (p.ax ?? p.lx - 11) + 'px', top: (p.ay ?? p.ly + 38) + 'px' }, act);
-});
-
-// name / chip labels
-state.players.forEach((name, i) => {
-  const p = seatpos[i], chips = state.chips[i];
-  add('name' + (chips == null ? ' empty' : ''), { left: p.lx + 'px', top: p.ly + 'px' },
-      (state.atc && i === state.turn - 1 ? state.atc + ' to call' : name) + (chips != null ? '<br>' + chips : ''));
-});
-
-// board, pot, dealer button, turn arrow
-state.board.forEach((c, i) => card(c, 52 + i * 75, 228, 1));
-add('pot', { left: '496px', top: '239px' }, 'POT : ' + state.pot);
-const dealerPos = seatpos[state.dealer - 1];
-add('', { left: dealerPos.dx + 'px', top: dealerPos.dy + 'px' }, 'D', 'dealer');
-if (state.turn > 0) {
-  const t = seatpos[state.turn - 1];
-  add(t.down ? 'down' : '', { left: t.tx + 'px', top: t.ty + 'px' }, '', 'arrow');
-}
-
-// controls
-const message = add('', {}, '', 'msg');
-function addMessage(text) {
-  const r = document.createElement('div');
-  r.textContent = text;
-  message.appendChild(r);
-  message.scrollTop = message.scrollHeight;
-}
-state.message.forEach(addMessage);
-// const controls = state.atc
-//   ? ['Call', 'RaiseHalfPot', 'RaisePot', 'AllIn', 'Raise']
-//   : ['Check', 'BetHalfPot', 'BetPot', 'AllIn', 'Bet'];
-const controls = state.controls;
-const row = add('', {}, '', 'controls');
-controls.forEach(name => {
-  if (name === 'Bet' || name === 'Raise') {
-    const l = document.createElement('span');
-    l.className = 'label'; l.textContent = name;
+  // controls
+  const message = add('', {}, '', 'msg');
+  function addMessage(text) {
+    const r = document.createElement('div');
+    r.textContent = text;
+    message.appendChild(r);
+    message.scrollTop = message.scrollHeight;
+  }
+  (state.message || []).forEach(addMessage);
+  // const controls = state.atc
+  //   ? ['Call', 'RaiseHalfPot', 'RaisePot', 'AllIn', 'Raise']
+  //   : ['Check', 'BetHalfPot', 'BetPot', 'AllIn', 'Bet'];
+  const controls = state.controls || [];
+  const row = add('', {}, '', 'controls');
+  controls.forEach(name => {
+    if (name === 'Bet' || name === 'Raise') {
+      const l = document.createElement('span');
+      l.className = 'label'; l.textContent = name;
+      const i = document.createElement('input');
+      i.id = 'bet'; i.value = saved.bet ?? '0';
+      row.append(l, i);
+    } else {
+      const b = document.createElement('button');
+      b.textContent = name;
+      b.onclick = () => {
+        const bet = document.getElementById('bet');
+        if (!send({ action: name, amount: bet ? bet.value : undefined })) addMessage('Not connected');
+      };
+      row.appendChild(b);
+    }
+  });
+  add('label', { left: '24px', top: '470px' }, 'Chat');
+  [['chat', '']].forEach(([id, v]) => {
     const i = document.createElement('input');
-    i.id = 'bet'; i.value = '0';
-    row.append(l, i);
-  } else {
-    const b = document.createElement('button');
-    b.textContent = name;
-    b.onclick = () => { addMessage('You pressed ' + name); };
-    row.appendChild(b);
-  }
+    i.id = id; i.value = saved[id] ?? v;
+    T.appendChild(i);
+  });
+}
+
+// ---- htmx websocket: server pushes JSON game state, which we render ----
+let socket = null;
+function send(obj) {
+  if (!socket) return false;
+  socket.send(JSON.stringify(obj));
+  return true;
+}
+document.body.addEventListener('htmx:wsOpen', e => { socket = e.detail.socketWrapper; });
+document.body.addEventListener('htmx:wsClose', () => { socket = null; });
+document.body.addEventListener('htmx:wsBeforeMessage', e => {
+  e.preventDefault();                       // we render JSON ourselves; skip htmx's HTML swap
+  try { state = JSON.parse(e.detail.message); } catch (err) { return console.error('bad state', err); }
+  render(state);
 });
-add('label', { left: '24px', top: '470px' }, 'Chat');
-[['chat', '']].forEach(([id, v]) => {
-  const i = document.createElement('input');
-  i.id = id; i.value = v;
-  T.appendChild(i);
-});
+
+render(state);   // placeholder until the first update arrives
 </script>
 </body>
 </html>
