@@ -38,7 +38,7 @@
 <script src="https://unpkg.com/htmx.org@2.0.4"></script>
 <script src="https://unpkg.com/htmx-ext-ws@2.0.1/ws.js"></script>
 </head>
-<body hx-ext="ws" ws-connect="ws://localhost:1338/ws">
+<body hx-ext="ws" ws-connect="ws://localhost:9876/websocket">
 <div id="table"></div>
 
 <script>
@@ -163,13 +163,14 @@ function render(state) {
       l.className = 'label'; l.textContent = name;
       const i = document.createElement('input');
       i.id = 'bet'; i.value = saved.bet ?? '0';
+      i.onkeydown = e => { if (e.key === 'Enter') act({ action: name, amount: i.value }); };
       row.append(l, i);
     } else {
       const b = document.createElement('button');
       b.textContent = name;
       b.onclick = () => {
         const bet = document.getElementById('bet');
-        if (!send({ action: name, amount: bet ? bet.value : undefined })) addMessage('Not connected');
+        act({ action: name, amount: bet ? bet.value : undefined });
       };
       row.appendChild(b);
     }
@@ -178,6 +179,10 @@ function render(state) {
   [['chat', '']].forEach(([id, v]) => {
     const i = document.createElement('input');
     i.id = id; i.value = saved[id] ?? v;
+    i.onkeydown = e => {
+      if (e.key !== 'Enter' || !i.value.trim()) return;
+      if (act({ action: 'Chat', text: i.value })) i.value = '';
+    };
     T.appendChild(i);
   });
 }
@@ -188,6 +193,16 @@ function send(obj) {
   if (!socket) return false;
   socket.send(JSON.stringify(obj));
   return true;
+}
+// send an action message to the server, reporting failure in the message box
+function act(msg) {
+  const ok = send(msg);
+  if (!ok) {
+    const m = document.getElementById('msg'), r = document.createElement('div');
+    r.textContent = 'Not connected';
+    m.appendChild(r); m.scrollTop = m.scrollHeight;
+  }
+  return ok;
 }
 document.body.addEventListener('htmx:wsOpen', e => { socket = e.detail.socketWrapper; });
 document.body.addEventListener('htmx:wsClose', () => { socket = null; });
