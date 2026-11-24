@@ -38,7 +38,7 @@
 <script src="https://unpkg.com/htmx.org@2.0.4"></script>
 <script src="https://unpkg.com/htmx-ext-ws@2.0.1/ws.js"></script>
 </head>
-<body hx-ext="ws" ws-connect="ws://localhost:9876/websocket">
+<body hx-ext="ws" ws-connect="ws://localhost:9876/dave">
 <div id="table"></div>
 
 <script>
@@ -71,18 +71,19 @@ let state = {
   blinds: '15/30', 
   next_blinds: '25/50',
   next_blind_time: '20:35',
-  pot: 200, 
+  pot: '200', 
   dealer: 3,   // seat number holding the D button
   turn: 1,     // seat number to act (red arrow); 0 = no arrow
   atc: 1, 
   board: ['9d', 'Qh', '4s', 'As'],
-  message: ['Dealer:You have 5 seconds left to act'],
+  message: 'Dealer:You have 5 seconds left to act\nasdfgh\nrow3\nrow4\nrow5\nrow6',
   // per-seat data, indexed by seat number - 1
   players: ['Dave', 'Chris', 'Andy', 'Nick'],
   chips: [2950, 3200, 3450, 2400],
   cards: [['2s', 'As'], [], [], ['back', 'back']],   // [] = no cards shown
   actions: ['Check', '', '', 'Raise 1000'],          // 'Check', 'Fold', ...
-  controls: ['Check', 'BetHalfPot', 'BetPot', 'AllIn', 'Bet']                         
+  controls: ['Check', 'BetHalfPot', 'BetPot', 'AllIn', 'Bet'],
+  connected: [1,1,1,0]                     
 };
 
 // Seat screen positions (px), indexed by seat number - 1
@@ -129,7 +130,7 @@ function render(state) {
   // name / chip labels
   state.players.forEach((name, i) => {
     const p = seatpos[i], chips = state.chips[i];
-    add('name' + (chips == null ? ' empty' : ''), { left: p.lx + 'px', top: p.ly + 'px' },
+    add('name' + (chips == null ? ' empty' : '') + (state.connected && state.connected[i] == 0 ? ' out' : ''), { left: p.lx + 'px', top: p.ly + 'px' },
         (state.atc && i === state.turn - 1 ? state.atc + ' to call' : name) + (chips != null ? '<br>' + chips : ''));
   });
 
@@ -151,7 +152,7 @@ function render(state) {
     message.appendChild(r);
     message.scrollTop = message.scrollHeight;
   }
-  (state.message || []).forEach(addMessage);
+  String(state.message || '').split('\n').forEach(addMessage);   // string; each line is a row
   // const controls = state.atc
   //   ? ['Call', 'RaiseHalfPot', 'RaisePot', 'AllIn', 'Raise']
   //   : ['Check', 'BetHalfPot', 'BetPot', 'AllIn', 'Bet'];
