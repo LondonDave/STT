@@ -1,0 +1,23 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "stt-server",
+	// "main": "src/index.ts",
+	"main": "server.js",
+	// "upload_source_maps": true,
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "STTSERVER",
+				"class_name": "STTServer"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": [
+				"STTServer"
+			]
+		}
+	]
+}
