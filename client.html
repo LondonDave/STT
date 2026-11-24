@@ -5,6 +5,9 @@
 <title>STT Client</title>
 <style>
   html, body { margin: 0; background: #222; }
+  #front { color: #fff; font: 18px Arial, Helvetica, sans-serif; text-align: center; padding-top: 120px; }
+  #front select { font-size: 18px; margin-left: 8px; }
+  [hidden] { display: none !important; }
   #table {
     position: relative; width: 800px; height: 495px; margin: 0 auto;
     background: #0b4a14; font: bold 14px Arial, Helvetica, sans-serif; color: #000;
@@ -38,8 +41,18 @@
 <script src="https://unpkg.com/htmx.org@2.0.4"></script>
 <script src="https://unpkg.com/htmx-ext-ws@2.0.1/ws.js"></script>
 </head>
-<body hx-ext="ws" ws-connect="ws://localhost:9876/dave">
-<div id="table"></div>
+<body hx-ext="ws">
+<!-- page 1: choose who you are -->
+<div id="front">
+  <label for="who">Who are you?</label>
+  <select id="who">
+    <option value="" selected disabled>Select name...</option>
+    <option>Andy</option><option>Chris</option><option>Dave</option><option>Nick</option>
+  </select>
+</div>
+
+<!-- page 2: the table (shown after a name is chosen) -->
+<div id="table" hidden></div>
 
 <script>
 // All coordinates are px relative to the table body.
@@ -213,7 +226,17 @@ document.body.addEventListener('htmx:wsBeforeMessage', e => {
   render(state);
 });
 
-render(state);   // placeholder until the first update arrives
+// ---- front page: picking a name opens the table page and connects to /<name> ----
+const WS_BASE = 'ws://localhost:9876/';
+document.getElementById('who').onchange = e => {
+  const name = e.target.value.toLowerCase();
+  document.getElementById('front').hidden = true;
+  T.hidden = false;
+  const conn = document.createElement('div');
+  conn.setAttribute('ws-connect', WS_BASE + name);
+  document.body.appendChild(conn);
+  htmx.process(conn);                       // htmx opens the websocket
+};
 </script>
 </body>
 </html>
