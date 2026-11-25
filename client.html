@@ -150,8 +150,10 @@ function render(state) {
   // board, pot, dealer button, turn arrow
   state.board.forEach((c, i) => card(c, 52 + i * 75, 228, 1));
   add('pot', { left: '496px', top: '239px' }, 'POT : ' + state.pot);
-  const dealerPos = seatpos[state.dealer - 1];
-  add('', { left: dealerPos.dx + 'px', top: dealerPos.dy + 'px' }, 'D', 'dealer');
+  if (state.dealer > 0){
+    const dealerPos = seatpos[state.dealer - 1];
+    add('', { left: dealerPos.dx + 'px', top: dealerPos.dy + 'px' }, 'D', 'dealer');
+  }
   if (state.turn > 0) {
     const t = seatpos[state.turn - 1];
     add(t.down ? 'down' : '', { left: t.tx + 'px', top: t.ty + 'px' }, '', 'arrow');
