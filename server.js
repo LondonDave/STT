@@ -458,7 +458,7 @@ export class STTServer extends DurableObject {
 	}
 
 	setControls = function(){
-		return ['Fold','Raise3BB',RaisePot,RaiseAllIn,Raise]
+		return ['Fold','Raise3BB','RaisePot','RaiseAllIn','Raise']
 	}
 
 	// next seat after lastTurn (1-based, wrapping), skipping players who are out
@@ -554,7 +554,7 @@ export class STTServer extends DurableObject {
 			chips: state.chips,
 			cards: state.cards.map((c,i) => i == seat-1 ? c : (c.length > 0 ? ['back','back'] : c)),   // [] = no cards shown
 			actions: state.actions,          // 'Check', 'Fold', ...
-			controls: state.turn-1 == seat ? state.controls : [],
+			controls: state.turn == seat ? state.controls : [],
 			connected: state.connected                    
 		};
 
