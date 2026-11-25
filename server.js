@@ -78,7 +78,7 @@ export class STTServer extends DurableObject {
 
 			// per-seat data, indexed by seat number - 1
 			message: [],
-			players: ['Dave', 'Chris', 'Andy', 'Nick'],
+			players: [],
 			chips: [3000, 3000, 3000, 3000],
 			cards: [['Kh','Ks'], [], [], ['3d','8c']],   // [] = no cards shown
 			actions: ['', '', '', ''],          // 'Check', 'Fold', ...
